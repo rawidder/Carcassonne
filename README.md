@@ -8,4 +8,4 @@ Punktezähler für Carcassonne im Handy-Browser, damit fürs Reiseset nur Plätt
 - Rückgängig, Verlauf mit einzeln löschbaren Einträgen
 - Spielstand bleibt im Browser des Geräts gespeichert
 
-Online: https://rawidder.github.io/carcassonne/
+Online: https://rawidder.github.io/Carcassonne/
