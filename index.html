@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Carcassonne Zählleiste</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grenze:wght@500;700&family=Alegreya+Sans:wght@400;500;700;800&display=swap">
+<style>
+/* Layout: one-column phone app. Score cards on top, scoring panel below, history at the end. */
+:root{
+  --bg:#eef0e6;        /* pale meadow */
+  --surface:#fbfbf6;
+  --line:#d3d6c4;
+  --fg:#23271c;
+  --muted:#656b58;
+  --accent:#2f6b3a;    /* field green */
+  --accent-fg:#ffffff;
+  --road:#a88a5a;
+  --danger:#a2342b;
+  --display:"Grenze", Georgia, serif;
+  --body:"Alegreya Sans", system-ui, -apple-system, sans-serif;
+  --m-yellow:#e8b923; --m-red:#cc3b2f; --m-green:#3f8f3c; --m-blue:#2f62b5; --m-black:#2a2a2a; --m-grey:#9a9a9a; --m-pink:#d871a5;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#161a13; --surface:#20251b; --line:#363d2d; --fg:#e8ead9; --muted:#9ea38c;
+  --accent:#6cb377; --accent-fg:#10140d; --road:#c9a874; --danger:#e07067; --m-black:#0b0b0b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#161a13; --surface:#20251b; --line:#363d2d; --fg:#e8ead9; --muted:#9ea38c;
+  --accent:#6cb377; --accent-fg:#10140d; --road:#c9a874; --danger:#e07067; --m-black:#0b0b0b; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{margin:0}
+[hidden]{display:none!important}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{background:var(--bg)}
+body{color:var(--fg);font-family:var(--body);font-size:17px;line-height:1.4;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 40px;
+  -webkit-tap-highlight-color:transparent}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1,h2{font-family:var(--display);font-weight:700;margin:0;text-wrap:balance;letter-spacing:.01em}
+h1{font-size:30px}
+h2{font-size:22px}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 14px;min-height:44px}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:700}
+button.ghost{background:transparent}
+button.danger{color:var(--danger);border-color:var(--danger);background:transparent}
+button:disabled{opacity:.45;cursor:default}
+.label{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.meeple{width:22px;height:22px;flex:none;background:var(--c);
+  clip-path:polygon(50% 0,64% 6%,68% 22%,62% 34%,100% 44%,96% 58%,70% 56%,84% 100%,58% 100%,50% 80%,42% 100%,16% 100%,30% 56%,4% 58%,0 44%,38% 34%,32% 22%,36% 6%)}
+
+/* setup */
+.pl-row{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}
+.pl-row input{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.swatches{display:flex;gap:6px;flex-wrap:wrap;grid-column:1/-1;padding-left:30px}
+.sw{width:34px;height:34px;min-height:34px;padding:0;border-radius:50%;background:var(--c);border:2px solid transparent}
+.sw[aria-pressed="true"]{border-color:var(--fg);box-shadow:0 0 0 2px var(--surface) inset}
+.sw:disabled{opacity:.2}
+
+/* scores */
+.scores{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.card{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px 12px;display:flex;flex-direction:column;gap:2px;text-align:left;min-height:0}
+.card .name{display:flex;gap:8px;align-items:center;font-weight:700;min-width:0}
+.card .name span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card .pts{font-family:var(--display);font-size:46px;line-height:1;font-variant-numeric:tabular-nums}
+.card .track{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.card[aria-pressed="true"]{border-color:var(--c);box-shadow:0 0 0 2px var(--c) inset;background:color-mix(in srgb,var(--c) 12%,var(--surface))}
+.card .lead{position:absolute;top:8px;right:10px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.hint{font-size:14px;color:var(--muted)}
+
+/* mode + types */
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:transparent;min-height:42px;padding:8px 6px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg);font-weight:700}
+.types{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.types button{padding:8px 2px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:14px}
+.types button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:700}
+.ico{width:26px;height:26px}
+.stepper{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.stepper .ctl{display:flex;align-items:center;gap:6px}
+.stepper .ctl button{width:48px;height:48px;padding:0;font-size:24px;font-weight:700}
+.stepper .val{min-width:44px;text-align:center;font-family:var(--display);font-size:30px;font-variant-numeric:tabular-nums}
+.stepper .what{font-weight:700}
+.stepper .sub{font-size:13px;color:var(--muted)}
+.quick{display:flex;gap:6px;flex-wrap:wrap}
+.quick button{min-height:38px;padding:6px 12px;font-variant-numeric:tabular-nums}
+.result{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-top:1px dashed var(--line);padding-top:12px}
+.result .big{font-family:var(--display);font-size:28px}
+.result .who{font-size:14px;color:var(--muted)}
+.result button{flex:1 1 160px}
+
+/* history */
+.hist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.hist li{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.hist li:last-child{border-bottom:0}
+.hist .dots{display:flex;gap:2px}
+.hist .dots .meeple{width:16px;height:16px}
+.hist .txt{min-width:0;font-size:15px}
+.hist .txt small{display:block;color:var(--muted);font-size:12px}
+.hist .p{font-weight:800;font-variant-numeric:tabular-nums}
+.hist .del{min-height:32px;padding:4px 10px;font-size:13px}
+.empty{color:var(--muted);font-size:15px}
+.confirm{border:1px solid var(--danger);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:700;font-size:15px;z-index:20;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:no-preference){.card .pts.bump{animation:bump .35s ease}@keyframes bump{40%{transform:scale(1.15)}}}
+</style>
+</head>
+<body>
+
+<div class="wrap" id="app"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const COLORS=[["yellow","Gelb"],["red","Rot"],["green","Grün"],["blue","Blau"],["black","Schwarz"],["grey","Grau"],["pink","Pink"]];
+const TYPES={
+  road:{n:"Straße",ico:'<svg class="ico" viewBox="0 0 26 26"><rect x="1" y="1" width="24" height="24" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M1 13h24" stroke="currentColor" stroke-width="3"/></svg>'},
+  city:{n:"Stadt",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M3 23V10h3v3h3V6h3v3h2V6h3v7h3v-3h3v13z" fill="currentColor"/></svg>'},
+  cloister:{n:"Kloster",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M13 2v4M11 4h4M6 24V13l7-6 7 6v11z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M11 24v-5a2 2 0 0 1 4 0v5" fill="currentColor"/></svg>'},
+  farm:{n:"Wiese",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M2 22c3-4 5-4 8 0M9 22c3-6 6-6 9 0M16 22c3-4 5-4 8 0M7 15l1-5M13 13V6M19 15l-1-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'},
+  free:{n:"Frei",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M13 5v16M5 13h16" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>'}
+};
+const KEY="carcassonne-zaehler-v1";
+const EXAMPLE={phase:"game",end:false,players:[{name:"Anna",color:"blue"},{name:"Ben",color:"red"},{name:"Clara",color:"yellow"}],
+  hist:[{p:[0],pts:8,l:"Stadt · 3 Plättchen, 1 Wappen"},{p:[1],pts:4,l:"Straße · 4 Plättchen"},{p:[2],pts:9,l:"Kloster · fertig"},{p:[0,1],pts:6,l:"Stadt · 3 Plättchen (geteilt)"}],example:true};
+let S, ui={sel:[],type:"road",a:3,b:0,free:0,confirm:false,editing:null};
+
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.players)return s}catch(e){}return structuredClone(EXAMPLE)}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const mp=c=>`<span class="meeple" style="--c:var(--m-${c})" aria-hidden="true"></span>`;
+const scores=()=>S.players.map((_,i)=>S.hist.reduce((t,h)=>t+(h.p.includes(i)?h.pts:0),0));
+function toast(t){const el=document.getElementById("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,1800)}
+
+function calc(){
+  const {type,a,b}=ui,end=S.end;
+  if(type==="road")return{pts:a,l:`Straße · ${a} Plättchen`};
+  if(type==="city"){const pts=end?a+b:2*(a+b);return{pts,l:`Stadt · ${a} Plättchen${b?`, ${b} Wappen`:""}${end?" (unfertig)":""}`}}
+  if(type==="cloister")return end?{pts:a,l:`Kloster · unfertig, ${a} Plättchen`}:{pts:9,l:"Kloster · fertig"};
+  if(type==="farm")return{pts:3*a,l:`Wiese · ${a} fertige Städte`};
+  return{pts:ui.free,l:ui.free<0?"Korrektur":"Freie Punkte"};
+}
+function defaults(){
+  const t=ui.type;ui.b=0;
+  ui.a=t==="road"?3:t==="city"?2:t==="cloister"?(S.end?5:9):t==="farm"?2:0;ui.free=0;
+}
+
+/* ---------- render ---------- */
+function render(){
+  const app=document.getElementById("app");
+  app.innerHTML=S.phase==="setup"?setupView():gameView();
+}
+function setupView(){
+  const used=S.players.map(p=>p.color);
+  return `<div class="top"><h1>Neues Spiel</h1></div>
+  <div class="panel"><div class="label">Spieler · ${S.players.length} von 6</div>
+  ${S.players.map((p,i)=>`<div class="pl-row">${mp(p.color)}
+    <input id="pn${i}" data-act="name" data-i="${i}" value="${esc(p.name)}" placeholder="Name" maxlength="16" aria-label="Name Spieler ${i+1}">
+    <button class="ghost" data-act="rm" data-i="${i}" ${S.players.length<=2?"disabled":""} aria-label="Spieler entfernen">✕</button>
+    <div class="swatches">${COLORS.map(([c,n])=>`<button class="sw" style="--c:var(--m-${c})" data-act="col" data-i="${i}" data-c="${c}" aria-label="${n}" aria-pressed="${p.color===c}" ${used.includes(c)&&p.color!==c?"disabled":""}></button>`).join("")}</div>
+  </div>`).join("")}
+  <div class="row"><button data-act="add" ${S.players.length>=6?"disabled":""}>+ Spieler</button></div></div>
+  <button class="primary" data-act="start">Spiel starten</button>`;
+}
+function gameView(){
+  const sc=scores(),max=Math.max(...sc),r=calc(),sel=ui.sel;
+  const names=sel.map(i=>S.players[i].name).join(", ");
+  const steppers={
+    road:[["Plättchen der Straße","1 Punkt pro Plättchen","a",1]],
+    city:[["Plättchen der Stadt",S.end?"1 Punkt pro Plättchen":"2 Punkte pro Plättchen","a",1],["Wappen",S.end?"je 1 Punkt":"je 2 Punkte","b",0]],
+    cloister:S.end?[["Plättchen um und mit Kloster","1 Punkt pro Plättchen, max. 9","a",1,9]]:[],
+    farm:[["Fertige Städte an der Wiese","3 Punkte pro Stadt","a",0]],
+    free:[]
+  }[ui.type];
+  return `<div class="top"><h1>Carcassonne</h1>
+    <div class="row"><button class="ghost" data-act="undo" ${S.hist.length?"":"disabled"}>↶ Rückgängig</button></div></div>
+  ${S.example?`<div class="panel"><div class="hint">Das ist ein Beispielspiel. Leg unten mit „Neues Spiel“ deine eigenen Spieler an.</div></div>`:""}
+  <div><div class="label" style="margin-bottom:6px">Wer bekommt Punkte? Bei Gleichstand mehrere antippen.</div>
+  <div class="scores">${S.players.map((p,i)=>`<button class="card" style="--c:var(--m-${p.color})" data-act="sel" data-i="${i}" aria-pressed="${sel.includes(i)}">
+    ${sc[i]===max&&max>0?`<span class="lead">vorn</span>`:""}
+    <span class="name">${mp(p.color)}<span>${esc(p.name)}</span></span>
+    <span class="pts" id="pts${i}">${sc[i]}</span>
+    <span class="track">${sc[i]>=50?`Feld ${sc[i]%50} · ${Math.floor(sc[i]/50)}× herum`:`Feld ${sc[i]}`}</span></button>`).join("")}</div></div>
+
+  <div class="panel">
+    <div class="seg" role="group" aria-label="Spielphase">
+      <button data-act="end" data-v="0" aria-pressed="${!S.end}">Während des Spiels</button>
+      <button data-act="end" data-v="1" aria-pressed="${S.end}">Schlusswertung</button></div>
+    <div class="types">${Object.entries(TYPES).map(([k,t])=>`<button data-act="type" data-t="${k}" aria-pressed="${ui.type===k}">${t.ico}${t.n}</button>`).join("")}</div>
+    ${steppers.map(([w,s,k,min,mx])=>`<div class="stepper"><div><div class="what">${w}</div><div class="sub">${s}</div></div>
+      <div class="ctl"><button data-act="step" data-k="${k}" data-d="-1" data-min="${min}" aria-label="weniger">−</button><span class="val">${ui[k]}</span><button data-act="step" data-k="${k}" data-d="1" data-max="${mx||99}" aria-label="mehr">+</button></div></div>`).join("")}
+    ${ui.type==="cloister"&&!S.end?`<div class="hint">Ein fertiges Kloster mit allen 8 Nachbarn zählt immer 9 Punkte. Für unfertige Klöster auf „Schlusswertung“ umstellen.</div>`:""}
+    ${ui.type==="farm"&&!S.end?`<div class="hint">Wiesen werden erst bei der Schlusswertung gezählt.</div>`:""}
+    ${ui.type==="free"?`<div class="stepper"><div><div class="what">Punkte</div><div class="sub">Negativ für Korrekturen</div></div>
+      <div class="ctl"><button data-act="step" data-k="free" data-d="-1" data-min="-99" aria-label="weniger">−</button><span class="val">${ui.free}</span><button data-act="step" data-k="free" data-d="1" data-max="200" aria-label="mehr">+</button></div></div>
+      <div class="quick">${[1,2,3,4,5,10].map(n=>`<button data-act="quick" data-n="${n}">+${n}</button>`).join("")}<button data-act="quick" data-n="0">0</button></div>`:""}
+    <div class="result"><div><div class="big">${r.pts>0?"+":""}${r.pts} Punkte</div>
+      <div class="who">${sel.length?`für ${esc(names)}`:"Erst oben Spieler antippen"}</div></div>
+      <button class="primary" data-act="add-score" ${sel.length&&r.pts!==0?"":"disabled"}>Eintragen</button></div>
+  </div>
+
+  <div class="panel"><h2>Verlauf</h2>
+    ${S.hist.length?`<ol class="hist">${S.hist.map((h,j)=>({h,j})).reverse().map(({h,j})=>`<li>
+      <span class="dots">${h.p.map(i=>mp(S.players[i]?.color||"grey")).join("")}</span>
+      <span class="txt">${esc(h.p.map(i=>S.players[i]?.name).join(", "))}<small>${esc(h.l)}</small></span>
+      <span class="p">${h.pts>0?"+":""}${h.pts}</span>
+      <button class="ghost del" data-act="del" data-j="${j}" aria-label="Eintrag löschen">✕</button></li>`).join("")}</ol>`
+      :`<p class="empty">Noch keine Wertung. Spieler antippen, Art wählen, eintragen.</p>`}
+  </div>
+
+  ${ui.confirm?`<div class="confirm"><b>Neues Spiel anfangen?</b><span class="hint">Alle Punkte und der Verlauf werden gelöscht. Die Spieler bleiben erhalten.</span>
+    <div class="row"><button class="danger" data-act="new-yes">Ja, neu anfangen</button><button data-act="new-no">Abbrechen</button></div></div>`
+   :`<div class="row"><button data-act="new">Neues Spiel</button><button class="ghost" data-act="players">Spieler ändern</button></div>`}`;
+}
+
+/* ---------- events ---------- */
+document.addEventListener("input",e=>{const t=e.target;if(t.dataset.act==="name"){S.players[+t.dataset.i].name=t.value;save()}});
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button[data-act]");if(!b||b.disabled)return;
+  const d=b.dataset,i=+d.i;
+  switch(d.act){
+    case"col":S.players[i].color=d.c;break;
+    case"rm":S.players.splice(i,1);break;
+    case"add":{const free=COLORS.map(c=>c[0]).find(c=>!S.players.some(p=>p.color===c));S.players.push({name:"",color:free});break}
+    case"start":
+      S.players.forEach((p,k)=>{if(!p.name.trim())p.name=`Spieler ${k+1}`});
+      S.phase="game";S.hist=[];S.end=false;delete S.example;ui.sel=[];wake();break;
+    case"sel":ui.sel=ui.sel.includes(i)?ui.sel.filter(x=>x!==i):[...ui.sel,i].sort();break;
+    case"end":S.end=d.v==="1";defaults();if(S.end&&ui.type==="road")ui.a=3;break;
+    case"type":ui.type=d.t;defaults();break;
+    case"step":{const k=d.k,v=ui[k]+(+d.d);if(d.min!==undefined&&v<+d.min)return;if(d.max!==undefined&&v>+d.max)return;ui[k]=v;break}
+    case"quick":ui.free=+d.n;break;
+    case"add-score":{const r=calc();S.hist.push({p:[...ui.sel],pts:r.pts,l:r.l});
+      const who=ui.sel.slice();toast(`+${r.pts} für ${who.map(k=>S.players[k].name).join(", ")}`);ui.sel=[];
+      save();render();who.forEach(k=>document.getElementById("pts"+k)?.classList.add("bump"));return}
+    case"undo":{const h=S.hist.pop();if(h)toast(`Rückgängig: ${h.l}`);break}
+    case"del":S.hist.splice(+d.j,1);break;
+    case"new":ui.confirm=true;break;
+    case"new-no":ui.confirm=false;break;
+    case"new-yes":S.hist=[];S.end=false;ui.confirm=false;ui.sel=[];
+      if(S.example){S.phase="setup"}toast("Neues Spiel");break;
+    case"players":S.phase="setup";ui.sel=[];
+      if(S.example){S.players=[{name:"",color:"blue"},{name:"",color:"red"}];}break;
+  }
+  save();render();
+});
+async function wake(){try{await navigator.wakeLock?.request("screen")}catch(e){}}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&S.phase==="game")wake()});
+
+function start(data){S=data&&data.S?data.S:load();if(data&&data.ui)ui=data.ui;render();if(S.phase==="game")wake()}
+window.claude?.hot?.snapshot?.(()=>({S,ui}));
+window.claude?.hot?.ready?window.claude.hot.ready(start):start(window.claude?.hot?.data??{});
+</script>
+</body>
+</html>
