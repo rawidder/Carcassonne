@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Carcassonne Zählleiste</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Carcassonne">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2f6b3a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grenze:wght@500;700&family=Alegreya+Sans:wght@400;500;700;800&display=swap">
 <style>
@@ -79,8 +86,9 @@ button:disabled{opacity:.45;cursor:default}
 .seg button{border:0;border-radius:0;background:transparent;min-height:42px;padding:8px 6px}
 .seg button+button{border-left:1px solid var(--line)}
 .seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg);font-weight:700}
-.types{display:grid;grid-template-columns:repeat(auto-fit,minmax(48px,1fr));gap:6px}
+.types{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .toggles{display:flex;gap:6px;flex-wrap:wrap}
+.toast{text-align:center}
 .tg{min-height:40px;padding:6px 12px;font-size:15px}
 .tg[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg);font-weight:700}
 .exp{display:flex;flex-direction:column;gap:8px}
@@ -126,42 +134,73 @@ button:disabled{opacity:.45;cursor:default}
 
 <script>
 const COLORS=[["yellow","Gelb"],["red","Rot"],["green","Grün"],["blue","Blau"],["black","Schwarz"],["grey","Grau"],["pink","Pink"]];
+const EXPS=[
+  ["e1","Wirtshäuser &amp; Kathedralen","Straßen mit Wirtshaus und Städte mit Kathedrale"],
+  ["e2","Händler &amp; Baumeisterin","Waren-Mehrheiten und Wiesen mit Schwein"],
+  ["abt","Der Abt","Gärten und vorzeitig zurückgeholter Abt"],
+  ["gold","Die Goldminen","Goldbarren bei Spielende"],
+  ["magic","Die Zauberkundigen","Magier +1 pro Plättchen, Hexe halbiert"],
+  ["rob","Die Räuber","Räuber kassiert die Hälfte fremder Punkte"],
+  ["dep","Die Depeschen","Botin als zweite Zählfigur"]
+];
 const TYPES={
   road:{n:"Straße",ico:'<svg class="ico" viewBox="0 0 26 26"><rect x="1" y="1" width="24" height="24" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M1 13h24" stroke="currentColor" stroke-width="3"/></svg>'},
   city:{n:"Stadt",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M3 23V10h3v3h3V6h3v3h2V6h3v7h3v-3h3v13z" fill="currentColor"/></svg>'},
   cloister:{n:"Kloster",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M13 2v4M11 4h4M6 24V13l7-6 7 6v11z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M11 24v-5a2 2 0 0 1 4 0v5" fill="currentColor"/></svg>'},
   farm:{n:"Wiese",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M2 22c3-4 5-4 8 0M9 22c3-6 6-6 9 0M16 22c3-4 5-4 8 0M7 15l1-5M13 13V6M19 15l-1-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'},
   goods:{n:"Waren",exp:"e2",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M5 10h16l-2 13H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 10a4 4 0 0 1 8 0" fill="none" stroke="currentColor" stroke-width="2"/></svg>'},
+  gold:{n:"Gold",exp:"gold",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M3 21l3-7h8l3 7zM9 13l3-7h8l3 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>'},
+  robber:{n:"Räuber",exp:"rob",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M8 9c0-3 2-5 5-5s5 2 5 5M6 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M7 14h12v3a6 6 0 0 1-12 0z" fill="currentColor"/></svg>'},
   free:{n:"Frei",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M13 5v16M5 13h16" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>'}
 };
 const KEY="carcassonne-zaehler-v1";
 const EXAMPLE={phase:"game",end:false,players:[{name:"Anna",color:"blue"},{name:"Ben",color:"red"},{name:"Clara",color:"yellow"}],
   hist:[{p:[0],pts:8,l:"Stadt · 3 Plättchen, 1 Wappen"},{p:[1],pts:4,l:"Straße · 4 Plättchen"},{p:[2],pts:9,l:"Kloster · fertig"},{p:[0,1],pts:6,l:"Stadt · 3 Plättchen (geteilt)"}],example:true};
-let S, ui={sel:[],type:"road",a:3,b:0,free:0,inn:false,cath:false,pig:false,confirm:false};
-const EXP=()=>S.exp||(S.exp={e1:false,e2:false});
+const FLAGS=["inn","cath","pig","mag","witch","garden","early"];
+let S, ui={sel:[],type:"road",a:3,b:0,free:0,on:"m",confirm:false};
+const EXP=()=>S.exp||(S.exp={});
 
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.players)return s}catch(e){}return structuredClone(EXAMPLE)}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const mp=c=>`<span class="meeple" style="--c:var(--m-${c})" aria-hidden="true"></span>`;
-const scores=()=>S.players.map((_,i)=>S.hist.reduce((t,h)=>t+(h.p.includes(i)?h.pts:0),0));
-function toast(t){const el=document.getElementById("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,1800)}
+const sum=(i,f)=>S.hist.reduce((t,h)=>t+(h.p.includes(i)&&f(h)?h.pts:0),0);
+const scores=()=>S.players.map((_,i)=>sum(i,()=>true));
+const botin=i=>sum(i,h=>h.w==="b");
+const field=n=>n%50;
+const goldValue=n=>n*(n<=3?1:n<=6?2:n<=9?3:4);
+function toast(t,ms){const el=document.getElementById("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,ms||1800)}
 
 function calc(){
-  const {type,a,b}=ui,end=S.end;
-  const x=EXP();
-  if(type==="road"){if(x.e1&&ui.inn)return{pts:end?0:2*a,l:`Straße mit Wirtshaus · ${a} Plättchen${end?" (unfertig)":""}`};return{pts:a,l:`Straße · ${a} Plättchen`}}
-  if(type==="city"){const t=`${a} Plättchen${b?`, ${b} Wappen`:""}${end?" (unfertig)":""}`;
-    if(x.e1&&ui.cath)return{pts:end?0:3*(a+b),l:`Stadt mit Kathedrale · ${t}`};
-    return{pts:end?a+b:2*(a+b),l:`Stadt · ${t}`}}
-  if(type==="cloister")return end?{pts:a,l:`Kloster · unfertig, ${a} Plättchen`}:{pts:9,l:"Kloster · fertig"};
+  const {type,a,b}=ui,end=S.end,x=EXP();
+  const done=end?" (unfertig)":"";
+  // Zauberkundige: Magier +1 pro Plättchen, Hexe halbiert (aufgerundet)
+  const magic=(pts,l)=>{
+    if(!x.magic||pts===0)return{pts,l};
+    if(ui.mag)return{pts:pts+a,l:l+", Magier"};
+    if(ui.witch)return{pts:Math.ceil(pts/2),l:l+", Hexe"};
+    return{pts,l};
+  };
+  if(type==="road"){
+    if(x.e1&&ui.inn)return magic(end?0:2*a,`Straße mit Wirtshaus · ${a} Plättchen${done}`);
+    return magic(a,`Straße · ${a} Plättchen${done}`);
+  }
+  if(type==="city"){const t=`${a} Plättchen${b?`, ${b} Wappen`:""}${done}`;
+    if(x.e1&&ui.cath)return magic(end?0:3*(a+b),`Stadt mit Kathedrale · ${t}`);
+    return magic(end?a+b:2*(a+b),`Stadt · ${t}`)}
+  if(type==="cloister"){const n=x.abt&&ui.garden?"Garten":"Kloster";
+    if(end)return{pts:a,l:`${n} · unfertig, ${a} Plättchen`};
+    if(x.abt&&ui.early)return{pts:a,l:`${n} · Abt zurückgeholt, ${a} Plättchen`};
+    return{pts:9,l:`${n} · fertig`}}
   if(type==="farm"){const pig=x.e2&&ui.pig;return{pts:(pig?4:3)*a,l:`Wiese${pig?" mit Schwein":""} · ${a} fertige Städte`}}
   if(type==="goods")return{pts:10*a,l:`Waren · Mehrheit bei ${a} ${a===1?"Sorte":"Sorten"}`};
+  if(type==="gold")return{pts:goldValue(a),l:`Gold · ${a} ${a===1?"Barren":"Barren"}`};
+  if(type==="robber")return{pts:Math.ceil(a/2),l:`Räuber · Hälfte von ${a}`};
   return{pts:ui.free,l:ui.free<0?"Korrektur":"Freie Punkte"};
 }
 function defaults(){
-  const t=ui.type;ui.b=0;ui.inn=ui.cath=ui.pig=false;
-  ui.a=t==="road"?3:t==="city"?2:t==="cloister"?(S.end?5:9):t==="farm"?2:t==="goods"?1:0;ui.free=0;
+  const t=ui.type;ui.b=0;FLAGS.forEach(f=>ui[f]=false);
+  ui.a={road:3,city:2,cloister:S.end?5:9,farm:2,goods:1,gold:3,robber:6}[t]??0;ui.free=0;
 }
 
 /* ---------- render ---------- */
@@ -179,50 +218,73 @@ function setupView(){
     <div class="swatches">${COLORS.map(([c,n])=>`<button class="sw" style="--c:var(--m-${c})" data-act="col" data-i="${i}" data-c="${c}" aria-label="${n}" aria-pressed="${p.color===c}" ${used.includes(c)&&p.color!==c?"disabled":""}></button>`).join("")}</div>
   </div>`).join("")}
   <div class="row"><button data-act="add" ${S.players.length>=6?"disabled":""}>+ Spieler</button></div></div>
-  <div class="panel"><div class="label">Erweiterungen</div><div class="exp">
-    <label><input type="checkbox" id="e1" data-act="exp" data-e="e1" ${EXP().e1?"checked":""}><span>Wirtshäuser &amp; Kathedralen<small>Straßen mit Wirtshaus und Städte mit Kathedrale</small></span></label>
-    <label><input type="checkbox" id="e2" data-act="exp" data-e="e2" ${EXP().e2?"checked":""}><span>Händler &amp; Baumeister<small>Waren-Mehrheiten und Wiesen mit Schwein</small></span></label>
-    <div class="hint">Erweiterungen ohne eigene Wertung (z. B. Der Fluss) brauchen hier nichts.</div></div></div>
+  <div class="panel"><div class="label">Erweiterungen der BigBox</div><div class="exp">
+    ${EXPS.map(([k,n,d])=>`<label><input type="checkbox" id="x-${k}" data-act="exp" data-e="${k}" ${EXP()[k]?"checked":""}><span>${n}<small>${d}</small></span></label>`).join("")}
+    <div class="hint">Der Fluss, Die Fluggeräte, Die Fähren und Die Kornkreise ändern nichts an der Wertung und brauchen hier keinen Haken.</div></div></div>
   <button class="primary" data-act="start">Spiel starten</button>`;
 }
+function stepperHTML([w,s,k,min,mx]){
+  return `<div class="stepper"><div><div class="what">${w}</div><div class="sub">${s}</div></div>
+      <div class="ctl"><button data-act="step" data-k="${k}" data-d="-1" data-min="${min}" aria-label="weniger">−</button><span class="val">${ui[k]}</span><button data-act="step" data-k="${k}" data-d="1" data-max="${mx||99}" aria-label="mehr">+</button></div></div>`;
+}
 function gameView(){
-  const sc=scores(),max=Math.max(...sc),r=calc(),sel=ui.sel;
+  const x=EXP(),sc=scores(),max=Math.max(...sc),r=calc(),sel=ui.sel,t=ui.type;
   const names=sel.map(i=>S.players[i].name).join(", ");
+  const cloisterCount=S.end||(x.abt&&ui.early);
   const steppers={
-    road:[["Plättchen der Straße","1 Punkt pro Plättchen","a",1]],
-    city:[["Plättchen der Stadt",S.end?"1 Punkt pro Plättchen":"2 Punkte pro Plättchen","a",1],["Wappen",S.end?"je 1 Punkt":"je 2 Punkte","b",0]],
-    cloister:S.end?[["Plättchen um und mit Kloster","1 Punkt pro Plättchen, max. 9","a",1,9]]:[],
-    farm:[["Fertige Städte an der Wiese",(EXP().e2&&ui.pig)?"4 Punkte pro Stadt (Schwein)":"3 Punkte pro Stadt","a",0]],
+    road:[["Plättchen der Straße",x.e1&&ui.inn?"2 Punkte pro Plättchen (Wirtshaus)":"1 Punkt pro Plättchen","a",1]],
+    city:[["Plättchen der Stadt",x.e1&&ui.cath?"3 Punkte pro Plättchen (Kathedrale)":S.end?"1 Punkt pro Plättchen":"2 Punkte pro Plättchen","a",1],
+          ["Wappen",x.e1&&ui.cath?"je 3 Punkte":S.end?"je 1 Punkt":"je 2 Punkte","b",0]],
+    cloister:cloisterCount?[[`Plättchen um und mit ${x.abt&&ui.garden?"Garten":"Kloster"}`,"1 Punkt pro Plättchen, max. 9","a",1,9]]:[],
+    farm:[["Fertige Städte an der Wiese",(x.e2&&ui.pig)?"4 Punkte pro Stadt (Schwein)":"3 Punkte pro Stadt","a",0]],
     goods:[["Warensorten mit Mehrheit","Wein, Getreide, Stoff: je 10 Punkte","a",1,3]],
+    gold:[["Goldbarren","1–3: je 1 · 4–6: je 2 · 7–9: je 3 · ab 10: je 4","a",1]],
+    robber:[["Punkte der beraubten Wertung","Der Räuber bekommt die Hälfte, aufgerundet","a",1]],
     free:[]
-  }[ui.type];
-  const x=EXP(),tg=(k,t)=>`<button class="tg" data-act="tg" data-k="${k}" aria-pressed="${ui[k]}">${t}</button>`;
-  const toggles=[ui.type==="road"&&x.e1&&tg("inn","mit Wirtshaus"),ui.type==="city"&&x.e1&&tg("cath","mit Kathedrale"),ui.type==="farm"&&x.e2&&tg("pig","mit Schwein")].filter(Boolean).join("");
+  }[t];
+  const tg=(k,txt)=>`<button class="tg" data-act="tg" data-k="${k}" aria-pressed="${!!ui[k]}">${txt}</button>`;
+  const toggles=[
+    t==="road"&&x.e1&&tg("inn","mit Wirtshaus"),
+    t==="city"&&x.e1&&tg("cath","mit Kathedrale"),
+    (t==="road"||t==="city")&&x.magic&&tg("mag","mit Magier"),
+    (t==="road"||t==="city")&&x.magic&&tg("witch","mit Hexe"),
+    t==="cloister"&&x.abt&&tg("garden","Garten"),
+    t==="cloister"&&x.abt&&!S.end&&tg("early","Abt zurückgeholt"),
+    t==="farm"&&x.e2&&tg("pig","mit Schwein")
+  ].filter(Boolean).join("");
+  const hints=[
+    S.end&&((t==="road"&&ui.inn)||(t==="city"&&ui.cath))&&`Unfertig bei Spielende bringt ${ui.inn?"eine Straße mit Wirtshaus":"eine Stadt mit Kathedrale"} 0 Punkte. Ein Eintrag ist nicht nötig.`,
+    t==="goods"&&"Bei Spielende bekommt, wer die meisten Marker einer Sorte hat, 10 Punkte. Bei Gleichstand alle Beteiligten.",
+    t==="gold"&&"Goldbarren werden bei Spielende gewertet. Jeder zählt seine eigenen Barren.",
+    t==="robber"&&"Oben den Besitzer des Räubers antippen, nicht den beraubten Spieler. Der behält seine Punkte.",
+    t==="cloister"&&!S.end&&!(x.abt&&ui.early)&&`Ein fertiges ${x.abt&&ui.garden?"Garten":"Kloster"} mit allen 8 Nachbarn zählt immer 9 Punkte.${x.abt?" Holst du den Abt vorher zurück, tippe „Abt zurückgeholt“.":" Für unfertige Klöster auf „Schlusswertung“ umstellen."}`,
+    t==="farm"&&!S.end&&"Wiesen werden erst bei der Schlusswertung gezählt.",
+    t==="free"&&x.dep&&"Punkte aus Depeschen trägst du mit der passenden Wertung oder hier unter Frei ein."
+  ].filter(Boolean).map(h=>`<div class="hint">${h}</div>`).join("");
   return `<div class="top"><h1>Carcassonne</h1>
     <div class="row"><button class="ghost" data-act="undo" ${S.hist.length?"":"disabled"}>↶ Rückgängig</button></div></div>
   ${S.example?`<div class="panel"><div class="hint">Das ist ein Beispielspiel. Leg unten mit „Neues Spiel“ deine eigenen Spieler an.</div></div>`:""}
   <div><div class="label" style="margin-bottom:6px">Wer bekommt Punkte? Bei Gleichstand mehrere antippen.</div>
-  <div class="scores">${S.players.map((p,i)=>`<button class="card" style="--c:var(--m-${p.color})" data-act="sel" data-i="${i}" aria-pressed="${sel.includes(i)}">
+  <div class="scores">${S.players.map((p,i)=>{const bt=x.dep?botin(i):0,m=sc[i]-bt;
+    return `<button class="card" style="--c:var(--m-${p.color})" data-act="sel" data-i="${i}" aria-pressed="${sel.includes(i)}">
     ${sc[i]===max&&max>0?`<span class="lead">vorn</span>`:""}
     <span class="name">${mp(p.color)}<span>${esc(p.name)}</span></span>
     <span class="pts" id="pts${i}">${sc[i]}</span>
-    <span class="track">${sc[i]>=50?`Feld ${sc[i]%50} · ${Math.floor(sc[i]/50)}× herum`:`Feld ${sc[i]}`}</span></button>`).join("")}</div></div>
+    <span class="track">${x.dep?`Feld ${field(m)} · Botin ${field(bt)}`:sc[i]>=50?`Feld ${field(sc[i])} · ${Math.floor(sc[i]/50)}× herum`:`Feld ${sc[i]}`}</span></button>`}).join("")}</div></div>
 
   <div class="panel">
     <div class="seg" role="group" aria-label="Spielphase">
       <button data-act="end" data-v="0" aria-pressed="${!S.end}">Während des Spiels</button>
       <button data-act="end" data-v="1" aria-pressed="${S.end}">Schlusswertung</button></div>
-    <div class="types">${Object.entries(TYPES).filter(([,t])=>!t.exp||x[t.exp]).map(([k,t])=>`<button data-act="type" data-t="${k}" aria-pressed="${ui.type===k}">${t.ico}${t.n}</button>`).join("")}</div>
-    ${steppers.map(([w,s,k,min,mx])=>`<div class="stepper"><div><div class="what">${w}</div><div class="sub">${s}</div></div>
-      <div class="ctl"><button data-act="step" data-k="${k}" data-d="-1" data-min="${min}" aria-label="weniger">−</button><span class="val">${ui[k]}</span><button data-act="step" data-k="${k}" data-d="1" data-max="${mx||99}" aria-label="mehr">+</button></div></div>`).join("")}
+    <div class="types">${Object.entries(TYPES).filter(([,ty])=>!ty.exp||x[ty.exp]).map(([k,ty])=>`<button data-act="type" data-t="${k}" aria-pressed="${t===k}">${ty.ico}${ty.n}</button>`).join("")}</div>
     ${toggles?`<div class="toggles">${toggles}</div>`:""}
-    ${S.end&&((ui.type==="road"&&ui.inn)||(ui.type==="city"&&ui.cath))?`<div class="hint">Unfertig bei Spielende bringt ${ui.inn?"eine Straße mit Wirtshaus":"eine Stadt mit Kathedrale"} 0 Punkte. Ein Eintrag ist nicht nötig.</div>`:""}
-    ${ui.type==="goods"?`<div class="hint">Bei Spielende bekommt, wer die meisten Marker einer Sorte hat, 10 Punkte. Bei Gleichstand alle Beteiligten.</div>`:""}
-    ${ui.type==="cloister"&&!S.end?`<div class="hint">Ein fertiges Kloster mit allen 8 Nachbarn zählt immer 9 Punkte. Für unfertige Klöster auf „Schlusswertung“ umstellen.</div>`:""}
-    ${ui.type==="farm"&&!S.end?`<div class="hint">Wiesen werden erst bei der Schlusswertung gezählt.</div>`:""}
-    ${ui.type==="free"?`<div class="stepper"><div><div class="what">Punkte</div><div class="sub">Negativ für Korrekturen</div></div>
-      <div class="ctl"><button data-act="step" data-k="free" data-d="-1" data-min="-99" aria-label="weniger">−</button><span class="val">${ui.free}</span><button data-act="step" data-k="free" data-d="1" data-max="200" aria-label="mehr">+</button></div></div>
+    ${steppers.map(stepperHTML).join("")}
+    ${hints}
+    ${t==="free"?`${stepperHTML(["Punkte","Negativ für Korrekturen","free",-99,200])}
       <div class="quick">${[1,2,3,4,5,10].map(n=>`<button data-act="quick" data-n="${n}">+${n}</button>`).join("")}<button data-act="quick" data-n="0">0</button></div>`:""}
+    ${x.dep?`<div><div class="label" style="margin-bottom:6px">Punkte ziehen mit</div><div class="seg" role="group" aria-label="Zählfigur">
+      <button data-act="on" data-v="m" aria-pressed="${ui.on!=="b"}">Gefolgsmann</button>
+      <button data-act="on" data-v="b" aria-pressed="${ui.on==="b"}">Botin</button></div></div>`:""}
     <div class="result"><div><div class="big">${r.pts>0?"+":""}${r.pts} Punkte</div>
       <div class="who">${sel.length?`für ${esc(names)}`:"Erst oben Spieler antippen"}</div></div>
       <button class="primary" data-act="add-score" ${sel.length&&r.pts!==0?"":"disabled"}>Eintragen</button></div>
@@ -231,7 +293,7 @@ function gameView(){
   <div class="panel"><h2>Verlauf</h2>
     ${S.hist.length?`<ol class="hist">${S.hist.map((h,j)=>({h,j})).reverse().map(({h,j})=>`<li>
       <span class="dots">${h.p.map(i=>mp(S.players[i]?.color||"grey")).join("")}</span>
-      <span class="txt">${esc(h.p.map(i=>S.players[i]?.name).join(", "))}<small>${esc(h.l)}</small></span>
+      <span class="txt">${esc(h.p.map(i=>S.players[i]?.name).join(", "))}<small>${esc(h.l)}${h.w==="b"?" · Botin":""}</small></span>
       <span class="p">${h.pts>0?"+":""}${h.pts}</span>
       <button class="ghost del" data-act="del" data-j="${j}" aria-label="Eintrag löschen">✕</button></li>`).join("")}</ol>`
       :`<p class="empty">Noch keine Wertung. Spieler antippen, Art wählen, eintragen.</p>`}
@@ -250,19 +312,27 @@ document.addEventListener("click",e=>{
   const d=b.dataset,i=+d.i;
   switch(d.act){
     case"col":S.players[i].color=d.c;break;
-    case"tg":ui[d.k]=!ui[d.k];break;
+    case"tg":{const k=d.k;ui[k]=!ui[k];
+      if(ui[k]&&k==="mag")ui.witch=false;if(ui[k]&&k==="witch")ui.mag=false;
+      if(k==="early"&&ui.early)ui.a=Math.min(ui.a,9);
+      if(ui.type==="cloister"&&!S.end)ui.a=ui.early?Math.min(ui.a,8):9;break}
+    case"on":ui.on=d.v;break;
     case"rm":S.players.splice(i,1);break;
     case"add":{const free=COLORS.map(c=>c[0]).find(c=>!S.players.some(p=>p.color===c));S.players.push({name:"",color:free});break}
     case"start":
       S.players.forEach((p,k)=>{if(!p.name.trim())p.name=`Spieler ${k+1}`});
       S.phase="game";if(S.hist.some(h=>h.p.some(k=>k>=S.players.length)))S.hist=[];delete S.example;ui.sel=[];wake();break;
     case"sel":ui.sel=ui.sel.includes(i)?ui.sel.filter(x=>x!==i):[...ui.sel,i].sort();break;
-    case"end":S.end=d.v==="1";defaults();if(S.end&&ui.type==="road")ui.a=3;break;
+    case"end":S.end=d.v==="1";defaults();break;
     case"type":ui.type=d.t;defaults();break;
     case"step":{const k=d.k,v=ui[k]+(+d.d);if(d.min!==undefined&&v<+d.min)return;if(d.max!==undefined&&v>+d.max)return;ui[k]=v;break}
     case"quick":ui.free=+d.n;break;
-    case"add-score":{const r=calc();S.hist.push({p:[...ui.sel],pts:r.pts,l:r.l});
-      const who=ui.sel.slice();toast(`+${r.pts} für ${who.map(k=>S.players[k].name).join(", ")}`);ui.sel=[];
+    case"add-score":{const r=calc(),x=EXP(),w=x.dep&&ui.on==="b"?"b":"m";
+      const e={p:[...ui.sel],pts:r.pts,l:r.l};if(w==="b")e.w="b";S.hist.push(e);
+      const who=ui.sel.slice();ui.sel=[];ui.on="m";
+      // Depeschen: landet eine Zählfigur auf einem dunklen Feld (Vielfache von 5), gibt es eine Depesche
+      const draw=x.dep?who.filter(k=>{const bt=botin(k),pos=w==="b"?bt:scores()[k]-bt;return pos>0&&pos%5===0}):[];
+      toast(`+${r.pts} für ${who.map(k=>S.players[k].name).join(", ")}`+(draw.length?` · Depesche ziehen: ${draw.map(k=>S.players[k].name).join(", ")}`:""),draw.length?3500:1800);
       save();render();who.forEach(k=>document.getElementById("pts"+k)?.classList.add("bump"));return}
     case"undo":{const h=S.hist.pop();if(h)toast(`Rückgängig: ${h.l}`);break}
     case"del":S.hist.splice(+d.j,1);break;
