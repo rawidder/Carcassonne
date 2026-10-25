@@ -63,7 +63,7 @@ button:disabled{opacity:.45;cursor:default}
   clip-path:polygon(50% 0,64% 6%,68% 22%,62% 34%,100% 44%,96% 58%,70% 56%,84% 100%,58% 100%,50% 80%,42% 100%,16% 100%,30% 56%,4% 58%,0 44%,38% 34%,32% 22%,36% 6%)}
 
 /* setup */
-.pl-row{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center}
+.pl-row{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center}
 .pl-row input{width:100%;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
 .swatches{display:flex;gap:6px;flex-wrap:wrap;grid-column:1/-1;padding-left:30px}
 .sw{width:34px;height:34px;min-height:34px;padding:0;border-radius:50%;background:var(--c);border:2px solid transparent}
@@ -154,13 +154,12 @@ const TYPES={
   free:{n:"Frei",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M13 5v16M5 13h16" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>'}
 };
 const KEY="carcassonne-zaehler-v1";
-const EXAMPLE={phase:"game",end:false,players:[{name:"Anna",color:"blue"},{name:"Ben",color:"red"},{name:"Clara",color:"yellow"}],
-  hist:[{p:[0],pts:8,l:"Stadt · 3 Plättchen, 1 Wappen"},{p:[1],pts:4,l:"Straße · 4 Plättchen"},{p:[2],pts:9,l:"Kloster · fertig"},{p:[0,1],pts:6,l:"Stadt · 3 Plättchen (geteilt)"}],example:true};
+const fresh=()=>({phase:"setup",end:false,players:COLORS.slice(0,2).map(([c])=>({name:"",color:c})),hist:[],exp:{}});
 const FLAGS=["inn","cath","pig","mag","witch","garden","early"];
 let S, ui={sel:[],type:"road",a:3,b:0,free:0,on:"m",confirm:false};
 const EXP=()=>S.exp||(S.exp={});
 
-function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.players)return s}catch(e){}return structuredClone(EXAMPLE)}
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.players&&!s.example)return s}catch(e){}return fresh()}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const mp=c=>`<span class="meeple" style="--c:var(--m-${c})" aria-hidden="true"></span>`;
@@ -211,13 +210,14 @@ function render(){
 function setupView(){
   const used=S.players.map(p=>p.color);
   return `<div class="top"><h1>Neues Spiel</h1></div>
-  <div class="panel"><div class="label">Spieler · ${S.players.length} von 6</div>
+  <div class="panel"><div class="label">Anzahl Spieler</div>
+  <div class="seg" role="group" aria-label="Anzahl Spieler">${[2,3,4,5,6].map(n=>`<button data-act="count" data-n="${n}" aria-pressed="${S.players.length===n}">${n}</button>`).join("")}</div>
+  <div class="label">Namen und Farben</div>
   ${S.players.map((p,i)=>`<div class="pl-row">${mp(p.color)}
-    <input id="pn${i}" data-act="name" data-i="${i}" value="${esc(p.name)}" placeholder="Name" maxlength="16" aria-label="Name Spieler ${i+1}">
-    <button class="ghost" data-act="rm" data-i="${i}" ${S.players.length<=2?"disabled":""} aria-label="Spieler entfernen">✕</button>
+    <input id="pn${i}" data-act="name" data-i="${i}" value="${esc(p.name)}" placeholder="Spieler ${i+1}" maxlength="16" aria-label="Name Spieler ${i+1}">
     <div class="swatches">${COLORS.map(([c,n])=>`<button class="sw" style="--c:var(--m-${c})" data-act="col" data-i="${i}" data-c="${c}" aria-label="${n}" aria-pressed="${p.color===c}" ${used.includes(c)&&p.color!==c?"disabled":""}></button>`).join("")}</div>
   </div>`).join("")}
-  <div class="row"><button data-act="add" ${S.players.length>=6?"disabled":""}>+ Spieler</button></div></div>
+  </div>
   <div class="panel"><div class="label">Erweiterungen der BigBox</div><div class="exp">
     ${EXPS.map(([k,n,d])=>`<label><input type="checkbox" id="x-${k}" data-act="exp" data-e="${k}" ${EXP()[k]?"checked":""}><span>${n}<small>${d}</small></span></label>`).join("")}
     <div class="hint">Der Fluss, Die Fluggeräte, Die Fähren und Die Kornkreise ändern nichts an der Wertung und brauchen hier keinen Haken.</div></div></div>
@@ -263,7 +263,6 @@ function gameView(){
   ].filter(Boolean).map(h=>`<div class="hint">${h}</div>`).join("");
   return `<div class="top"><h1>Carcassonne</h1>
     <div class="row"><button class="ghost" data-act="undo" ${S.hist.length?"":"disabled"}>↶ Rückgängig</button></div></div>
-  ${S.example?`<div class="panel"><div class="hint">Das ist ein Beispielspiel. Leg unten mit „Neues Spiel“ deine eigenen Spieler an.</div></div>`:""}
   <div><div class="label" style="margin-bottom:6px">Wer bekommt Punkte? Bei Gleichstand mehrere antippen.</div>
   <div class="scores">${S.players.map((p,i)=>{const bt=x.dep?botin(i):0,m=sc[i]-bt;
     return `<button class="card" style="--c:var(--m-${p.color})" data-act="sel" data-i="${i}" aria-pressed="${sel.includes(i)}">
@@ -299,7 +298,7 @@ function gameView(){
       :`<p class="empty">Noch keine Wertung. Spieler antippen, Art wählen, eintragen.</p>`}
   </div>
 
-  ${ui.confirm?`<div class="confirm"><b>Neues Spiel anfangen?</b><span class="hint">Alle Punkte und der Verlauf werden gelöscht. Spieler und Erweiterungen bleiben erhalten.</span>
+  ${ui.confirm?`<div class="confirm"><b>Neues Spiel anfangen?</b><span class="hint">Alle Punkte und der Verlauf werden gelöscht. Danach kannst du Spieler und Erweiterungen anpassen.</span>
     <div class="row"><button class="danger" data-act="new-yes">Ja, neu anfangen</button><button data-act="new-no">Abbrechen</button></div></div>`
    :`<div class="row"><button data-act="new">Neues Spiel</button><button class="ghost" data-act="players">Spieler &amp; Erweiterungen</button></div>`}`;
 }
@@ -317,8 +316,8 @@ document.addEventListener("click",e=>{
       if(k==="early"&&ui.early)ui.a=Math.min(ui.a,9);
       if(ui.type==="cloister"&&!S.end)ui.a=ui.early?Math.min(ui.a,8):9;break}
     case"on":ui.on=d.v;break;
-    case"rm":S.players.splice(i,1);break;
-    case"add":{const free=COLORS.map(c=>c[0]).find(c=>!S.players.some(p=>p.color===c));S.players.push({name:"",color:free});break}
+    case"count":{const n=+d.n;S.players=S.players.slice(0,n);
+      while(S.players.length<n){const free=COLORS.map(c=>c[0]).find(c=>!S.players.some(p=>p.color===c));S.players.push({name:"",color:free})}break}
     case"start":
       S.players.forEach((p,k)=>{if(!p.name.trim())p.name=`Spieler ${k+1}`});
       S.phase="game";if(S.hist.some(h=>h.p.some(k=>k>=S.players.length)))S.hist=[];delete S.example;ui.sel=[];wake();break;
@@ -339,7 +338,7 @@ document.addEventListener("click",e=>{
     case"new":ui.confirm=true;break;
     case"new-no":ui.confirm=false;break;
     case"new-yes":S.hist=[];S.end=false;ui.confirm=false;ui.sel=[];
-      if(S.example){S.phase="setup"}toast("Neues Spiel");break;
+      S.phase="setup";break;
     case"players":S.phase="setup";ui.sel=[];
       if(S.example){S.players=[{name:"",color:"blue"},{name:"",color:"red"}];S.hist=[];}break;
   }
