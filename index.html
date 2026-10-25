@@ -79,7 +79,14 @@ button:disabled{opacity:.45;cursor:default}
 .seg button{border:0;border-radius:0;background:transparent;min-height:42px;padding:8px 6px}
 .seg button+button{border-left:1px solid var(--line)}
 .seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg);font-weight:700}
-.types{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.types{display:grid;grid-template-columns:repeat(auto-fit,minmax(48px,1fr));gap:6px}
+.toggles{display:flex;gap:6px;flex-wrap:wrap}
+.tg{min-height:40px;padding:6px 12px;font-size:15px}
+.tg[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg);font-weight:700}
+.exp{display:flex;flex-direction:column;gap:8px}
+.exp label{display:flex;gap:10px;align-items:flex-start;font-size:16px}
+.exp input{width:22px;height:22px;margin:1px 0 0;accent-color:var(--accent);flex:none}
+.exp small{display:block;color:var(--muted);font-size:13px}
 .types button{padding:8px 2px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:14px}
 .types button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:700}
 .ico{width:26px;height:26px}
@@ -124,12 +131,14 @@ const TYPES={
   city:{n:"Stadt",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M3 23V10h3v3h3V6h3v3h2V6h3v7h3v-3h3v13z" fill="currentColor"/></svg>'},
   cloister:{n:"Kloster",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M13 2v4M11 4h4M6 24V13l7-6 7 6v11z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M11 24v-5a2 2 0 0 1 4 0v5" fill="currentColor"/></svg>'},
   farm:{n:"Wiese",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M2 22c3-4 5-4 8 0M9 22c3-6 6-6 9 0M16 22c3-4 5-4 8 0M7 15l1-5M13 13V6M19 15l-1-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'},
+  goods:{n:"Waren",exp:"e2",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M5 10h16l-2 13H7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 10a4 4 0 0 1 8 0" fill="none" stroke="currentColor" stroke-width="2"/></svg>'},
   free:{n:"Frei",ico:'<svg class="ico" viewBox="0 0 26 26"><path d="M13 5v16M5 13h16" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>'}
 };
 const KEY="carcassonne-zaehler-v1";
 const EXAMPLE={phase:"game",end:false,players:[{name:"Anna",color:"blue"},{name:"Ben",color:"red"},{name:"Clara",color:"yellow"}],
   hist:[{p:[0],pts:8,l:"Stadt · 3 Plättchen, 1 Wappen"},{p:[1],pts:4,l:"Straße · 4 Plättchen"},{p:[2],pts:9,l:"Kloster · fertig"},{p:[0,1],pts:6,l:"Stadt · 3 Plättchen (geteilt)"}],example:true};
-let S, ui={sel:[],type:"road",a:3,b:0,free:0,confirm:false,editing:null};
+let S, ui={sel:[],type:"road",a:3,b:0,free:0,inn:false,cath:false,pig:false,confirm:false};
+const EXP=()=>S.exp||(S.exp={e1:false,e2:false});
 
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.players)return s}catch(e){}return structuredClone(EXAMPLE)}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
@@ -140,15 +149,19 @@ function toast(t){const el=document.getElementById("toast");el.textContent=t;el.
 
 function calc(){
   const {type,a,b}=ui,end=S.end;
-  if(type==="road")return{pts:a,l:`Straße · ${a} Plättchen`};
-  if(type==="city"){const pts=end?a+b:2*(a+b);return{pts,l:`Stadt · ${a} Plättchen${b?`, ${b} Wappen`:""}${end?" (unfertig)":""}`}}
+  const x=EXP();
+  if(type==="road"){if(x.e1&&ui.inn)return{pts:end?0:2*a,l:`Straße mit Wirtshaus · ${a} Plättchen${end?" (unfertig)":""}`};return{pts:a,l:`Straße · ${a} Plättchen`}}
+  if(type==="city"){const t=`${a} Plättchen${b?`, ${b} Wappen`:""}${end?" (unfertig)":""}`;
+    if(x.e1&&ui.cath)return{pts:end?0:3*(a+b),l:`Stadt mit Kathedrale · ${t}`};
+    return{pts:end?a+b:2*(a+b),l:`Stadt · ${t}`}}
   if(type==="cloister")return end?{pts:a,l:`Kloster · unfertig, ${a} Plättchen`}:{pts:9,l:"Kloster · fertig"};
-  if(type==="farm")return{pts:3*a,l:`Wiese · ${a} fertige Städte`};
+  if(type==="farm"){const pig=x.e2&&ui.pig;return{pts:(pig?4:3)*a,l:`Wiese${pig?" mit Schwein":""} · ${a} fertige Städte`}}
+  if(type==="goods")return{pts:10*a,l:`Waren · Mehrheit bei ${a} ${a===1?"Sorte":"Sorten"}`};
   return{pts:ui.free,l:ui.free<0?"Korrektur":"Freie Punkte"};
 }
 function defaults(){
-  const t=ui.type;ui.b=0;
-  ui.a=t==="road"?3:t==="city"?2:t==="cloister"?(S.end?5:9):t==="farm"?2:0;ui.free=0;
+  const t=ui.type;ui.b=0;ui.inn=ui.cath=ui.pig=false;
+  ui.a=t==="road"?3:t==="city"?2:t==="cloister"?(S.end?5:9):t==="farm"?2:t==="goods"?1:0;ui.free=0;
 }
 
 /* ---------- render ---------- */
@@ -166,6 +179,10 @@ function setupView(){
     <div class="swatches">${COLORS.map(([c,n])=>`<button class="sw" style="--c:var(--m-${c})" data-act="col" data-i="${i}" data-c="${c}" aria-label="${n}" aria-pressed="${p.color===c}" ${used.includes(c)&&p.color!==c?"disabled":""}></button>`).join("")}</div>
   </div>`).join("")}
   <div class="row"><button data-act="add" ${S.players.length>=6?"disabled":""}>+ Spieler</button></div></div>
+  <div class="panel"><div class="label">Erweiterungen</div><div class="exp">
+    <label><input type="checkbox" id="e1" data-act="exp" data-e="e1" ${EXP().e1?"checked":""}><span>Wirtshäuser &amp; Kathedralen<small>Straßen mit Wirtshaus und Städte mit Kathedrale</small></span></label>
+    <label><input type="checkbox" id="e2" data-act="exp" data-e="e2" ${EXP().e2?"checked":""}><span>Händler &amp; Baumeister<small>Waren-Mehrheiten und Wiesen mit Schwein</small></span></label>
+    <div class="hint">Erweiterungen ohne eigene Wertung (z. B. Der Fluss) brauchen hier nichts.</div></div></div>
   <button class="primary" data-act="start">Spiel starten</button>`;
 }
 function gameView(){
@@ -175,9 +192,12 @@ function gameView(){
     road:[["Plättchen der Straße","1 Punkt pro Plättchen","a",1]],
     city:[["Plättchen der Stadt",S.end?"1 Punkt pro Plättchen":"2 Punkte pro Plättchen","a",1],["Wappen",S.end?"je 1 Punkt":"je 2 Punkte","b",0]],
     cloister:S.end?[["Plättchen um und mit Kloster","1 Punkt pro Plättchen, max. 9","a",1,9]]:[],
-    farm:[["Fertige Städte an der Wiese","3 Punkte pro Stadt","a",0]],
+    farm:[["Fertige Städte an der Wiese",(EXP().e2&&ui.pig)?"4 Punkte pro Stadt (Schwein)":"3 Punkte pro Stadt","a",0]],
+    goods:[["Warensorten mit Mehrheit","Wein, Getreide, Stoff: je 10 Punkte","a",1,3]],
     free:[]
   }[ui.type];
+  const x=EXP(),tg=(k,t)=>`<button class="tg" data-act="tg" data-k="${k}" aria-pressed="${ui[k]}">${t}</button>`;
+  const toggles=[ui.type==="road"&&x.e1&&tg("inn","mit Wirtshaus"),ui.type==="city"&&x.e1&&tg("cath","mit Kathedrale"),ui.type==="farm"&&x.e2&&tg("pig","mit Schwein")].filter(Boolean).join("");
   return `<div class="top"><h1>Carcassonne</h1>
     <div class="row"><button class="ghost" data-act="undo" ${S.hist.length?"":"disabled"}>↶ Rückgängig</button></div></div>
   ${S.example?`<div class="panel"><div class="hint">Das ist ein Beispielspiel. Leg unten mit „Neues Spiel“ deine eigenen Spieler an.</div></div>`:""}
@@ -192,9 +212,12 @@ function gameView(){
     <div class="seg" role="group" aria-label="Spielphase">
       <button data-act="end" data-v="0" aria-pressed="${!S.end}">Während des Spiels</button>
       <button data-act="end" data-v="1" aria-pressed="${S.end}">Schlusswertung</button></div>
-    <div class="types">${Object.entries(TYPES).map(([k,t])=>`<button data-act="type" data-t="${k}" aria-pressed="${ui.type===k}">${t.ico}${t.n}</button>`).join("")}</div>
+    <div class="types">${Object.entries(TYPES).filter(([,t])=>!t.exp||x[t.exp]).map(([k,t])=>`<button data-act="type" data-t="${k}" aria-pressed="${ui.type===k}">${t.ico}${t.n}</button>`).join("")}</div>
     ${steppers.map(([w,s,k,min,mx])=>`<div class="stepper"><div><div class="what">${w}</div><div class="sub">${s}</div></div>
       <div class="ctl"><button data-act="step" data-k="${k}" data-d="-1" data-min="${min}" aria-label="weniger">−</button><span class="val">${ui[k]}</span><button data-act="step" data-k="${k}" data-d="1" data-max="${mx||99}" aria-label="mehr">+</button></div></div>`).join("")}
+    ${toggles?`<div class="toggles">${toggles}</div>`:""}
+    ${S.end&&((ui.type==="road"&&ui.inn)||(ui.type==="city"&&ui.cath))?`<div class="hint">Unfertig bei Spielende bringt ${ui.inn?"eine Straße mit Wirtshaus":"eine Stadt mit Kathedrale"} 0 Punkte. Ein Eintrag ist nicht nötig.</div>`:""}
+    ${ui.type==="goods"?`<div class="hint">Bei Spielende bekommt, wer die meisten Marker einer Sorte hat, 10 Punkte. Bei Gleichstand alle Beteiligten.</div>`:""}
     ${ui.type==="cloister"&&!S.end?`<div class="hint">Ein fertiges Kloster mit allen 8 Nachbarn zählt immer 9 Punkte. Für unfertige Klöster auf „Schlusswertung“ umstellen.</div>`:""}
     ${ui.type==="farm"&&!S.end?`<div class="hint">Wiesen werden erst bei der Schlusswertung gezählt.</div>`:""}
     ${ui.type==="free"?`<div class="stepper"><div><div class="what">Punkte</div><div class="sub">Negativ für Korrekturen</div></div>
@@ -214,23 +237,25 @@ function gameView(){
       :`<p class="empty">Noch keine Wertung. Spieler antippen, Art wählen, eintragen.</p>`}
   </div>
 
-  ${ui.confirm?`<div class="confirm"><b>Neues Spiel anfangen?</b><span class="hint">Alle Punkte und der Verlauf werden gelöscht. Die Spieler bleiben erhalten.</span>
+  ${ui.confirm?`<div class="confirm"><b>Neues Spiel anfangen?</b><span class="hint">Alle Punkte und der Verlauf werden gelöscht. Spieler und Erweiterungen bleiben erhalten.</span>
     <div class="row"><button class="danger" data-act="new-yes">Ja, neu anfangen</button><button data-act="new-no">Abbrechen</button></div></div>`
-   :`<div class="row"><button data-act="new">Neues Spiel</button><button class="ghost" data-act="players">Spieler ändern</button></div>`}`;
+   :`<div class="row"><button data-act="new">Neues Spiel</button><button class="ghost" data-act="players">Spieler &amp; Erweiterungen</button></div>`}`;
 }
 
 /* ---------- events ---------- */
 document.addEventListener("input",e=>{const t=e.target;if(t.dataset.act==="name"){S.players[+t.dataset.i].name=t.value;save()}});
+document.addEventListener("change",e=>{const t=e.target;if(t.dataset.act==="exp"){EXP()[t.dataset.e]=t.checked;if(!TYPES[ui.type]||(TYPES[ui.type].exp&&!t.checked)){ui.type="road";defaults()}save()}});
 document.addEventListener("click",e=>{
   const b=e.target.closest("button[data-act]");if(!b||b.disabled)return;
   const d=b.dataset,i=+d.i;
   switch(d.act){
     case"col":S.players[i].color=d.c;break;
+    case"tg":ui[d.k]=!ui[d.k];break;
     case"rm":S.players.splice(i,1);break;
     case"add":{const free=COLORS.map(c=>c[0]).find(c=>!S.players.some(p=>p.color===c));S.players.push({name:"",color:free});break}
     case"start":
       S.players.forEach((p,k)=>{if(!p.name.trim())p.name=`Spieler ${k+1}`});
-      S.phase="game";S.hist=[];S.end=false;delete S.example;ui.sel=[];wake();break;
+      S.phase="game";if(S.hist.some(h=>h.p.some(k=>k>=S.players.length)))S.hist=[];delete S.example;ui.sel=[];wake();break;
     case"sel":ui.sel=ui.sel.includes(i)?ui.sel.filter(x=>x!==i):[...ui.sel,i].sort();break;
     case"end":S.end=d.v==="1";defaults();if(S.end&&ui.type==="road")ui.a=3;break;
     case"type":ui.type=d.t;defaults();break;
@@ -246,7 +271,7 @@ document.addEventListener("click",e=>{
     case"new-yes":S.hist=[];S.end=false;ui.confirm=false;ui.sel=[];
       if(S.example){S.phase="setup"}toast("Neues Spiel");break;
     case"players":S.phase="setup";ui.sel=[];
-      if(S.example){S.players=[{name:"",color:"blue"},{name:"",color:"red"}];}break;
+      if(S.example){S.players=[{name:"",color:"blue"},{name:"",color:"red"}];S.hist=[];}break;
   }
   save();render();
 });
